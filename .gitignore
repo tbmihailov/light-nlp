@@ -195,3 +195,7 @@ FakesAssemblies/
 # Visual Studio 6 workspace options file
 *.opt
 /LightNlp/LightNlp.Demo/document-types-so-culture.txt
+
+/LightNlp/LightNlp.Demo/data/troll-comments.txt
+
+/LightNlp/LightNlp.Demo/data/document-types-so-culture.txt

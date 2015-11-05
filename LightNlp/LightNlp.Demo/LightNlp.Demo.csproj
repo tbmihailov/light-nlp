@@ -146,22 +146,22 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="document-types-so-culture.txt">
+    <Content Include="data\document-types-so-culture.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="sofia-signals-Description-CategoryLevel1.txt">
+    <Content Include="data\sofia-signals-Description-CategoryLevel1.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="sofia-signals-Title-CategoryFull.txt">
+    <Content Include="data\sofia-signals-Title-CategoryFull.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="sofia-signals-title-categorylevel1.txt">
+    <Content Include="data\sofia-signals-title-categorylevel1.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="sofia-signals-TitleAndDescription-CategoryLevel1.txt">
+    <Content Include="data\sofia-signals-TitleAndDescription-CategoryLevel1.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="troll-comments.txt">
+    <Content Include="data\troll-comments.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
