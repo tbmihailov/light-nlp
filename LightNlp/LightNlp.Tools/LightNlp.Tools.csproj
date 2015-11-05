@@ -49,6 +49,9 @@
   <ItemGroup>
     <Compile Include="Helpers\FeatureExtractionNlpHelpers.cs" />
     <Compile Include="Helpers\LexiconReaderHelper.cs" />
+    <Compile Include="IO\ILabeledTextDocumentReader.cs" />
+    <Compile Include="IO\LabeledTextDocument.cs" />
+    <Compile Include="IO\LabeledTextDocumentFileReader.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

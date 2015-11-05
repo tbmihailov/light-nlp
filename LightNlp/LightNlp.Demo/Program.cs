@@ -6,6 +6,7 @@ using LightNlp.Core;
 using LightNlp.Core.Helpers;
 using LightNlp.Core.Modules;
 using LightNlp.Tools.Helpers;
+using LightNlp.Tools.IO;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -161,30 +162,30 @@ namespace LightNlp.Demo
             {
                 inputFile = args[0];
             }
-            
+
             Console.WriteLine("Input file:{0}", inputFile);
             char fieldSeparator = '\t';
 
             #region 3 - Build features dictionary - process documents and extract all possible features
             //build features dictionary
             var featureStatisticsDictBuilder = new FeatureStatisticsDictionaryBuilder();
-            
+
             Console.WriteLine("Building a features dictionary...");
             var timeStart = DateTime.Now;
             int itemsCnt = 0;
             Dictionary<string, int> classLabels = new Dictionary<string, int>();
             int maxClassLabelIndex = 0;
 
-            using (var filereader = System.IO.File.OpenText(inputFile))
+
+            using (var filereader = new LabeledTextDocumentFileReader(inputFile))
             {
-                while (!filereader.EndOfStream)
+                while (!filereader.EndOfSource())
                 {
-                    string line = filereader.ReadLine();
-                    var fields = line.Split(new char[] { fieldSeparator });
+                    var doc = filereader.ReadDocument();
 
                     //class label and doc contents
-                    string classLabel = fields[0];
-                    string docContent = fields[1];
+                    string classLabel = doc.ClassLabel;
+                    string docContent = doc.DocContent;
 
                     //build class labels dictionary
                     if (!classLabels.ContainsKey(classLabel))
@@ -222,7 +223,7 @@ namespace LightNlp.Demo
             int minFeaturesFrequency = 5;
             RecomputeFeatureIndexes(featureStatisticsDictBuilder, minFeaturesFrequency);
             Console.WriteLine("Selected {0} features with min freq {1} ", featureStatisticsDictBuilder.FeatureInfoStatistics.Count, minFeaturesFrequency);
-            
+
             //save fetures for later use
             string featuresDictFile = inputFile + ".feature";
             if (System.IO.File.Exists(featuresDictFile))
@@ -233,7 +234,7 @@ namespace LightNlp.Demo
             featureStatisticsDictBuilder.SaveToFile(featuresDictFile);
             Console.WriteLine("Features saved to file {0}", featuresDictFile);
             #endregion
-            
+
             //4- Load features from file
             featureStatisticsDictBuilder.LoadFromFile(featuresDictFile);
 
@@ -247,16 +248,15 @@ namespace LightNlp.Demo
             using (System.IO.TextWriter textWriter = new System.IO.StreamWriter(libSvmFileName, false))
             {
                 LibSvmFileBuilder libSvmFileBuilder = new LibSvmFileBuilder(textWriter);
-                using (var filereader = System.IO.File.OpenText(inputFile))
+                using (var filereader = new LabeledTextDocumentFileReader(inputFile))
                 {
-                    while (!filereader.EndOfStream)
+                    while (!filereader.EndOfSource())
                     {
-                        string line = filereader.ReadLine();
-                        var fields = line.Split(new char[] { fieldSeparator });
+                        var doc = filereader.ReadDocument();
 
                         //class label and doc contents
-                        string classLabel = fields[0];
-                        string docContent = fields[1];
+                        string classLabel = doc.ClassLabel;
+                        string docContent = doc.DocContent;
 
                         Dictionary<string, double> docFeatures = new Dictionary<string, double>();
                         pipeline.ProcessDocument(docContent, docFeatures);
@@ -392,7 +392,7 @@ namespace LightNlp.Demo
             //WriteResult(target);
             #endregion
 
-            Console.ReadKey();
+            //Console.ReadKey();
 
             //var instancesToTest = new Feature[] { new FeatureNode(1, 0.0), new FeatureNode(2, 1.0) };
             //var prediction = Linear.predict(model, instancesToTest);
