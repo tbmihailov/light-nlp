@@ -146,6 +146,12 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="data\sofia-signals-title-categorylevel1.test.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="data\sofia-signals-title-categorylevel1.train.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="data\document-types-so-culture.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
