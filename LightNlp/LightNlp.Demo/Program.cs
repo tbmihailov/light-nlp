@@ -119,6 +119,48 @@ namespace LightNlp.Demo
                 FeatureExtractionNlpHelpers.ExtractDnevnikEmoticonsFeaturesAndUpdateItemFeatures(text, features);
             }));
 
+            //Doc starts with
+            modules.Add(new ActionFeatureExtractionModule("doc_start", (text, features, annotations) =>
+            {
+                if (text.Length < 3)
+                {
+                    return;
+                }
+                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_starts_3_" + text.Substring(0, 3), 1.0);
+
+                if (text.Length < 4)
+                {
+                    return;
+                }
+                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_starts_4_" + text.Substring(0, 4), 1.0);
+
+                if (text.Length < 5)
+                {
+                    return;
+                }
+                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_starts_5_" + text.Substring(0, 5), 1.0);
+            }));
+
+            //Doc ends with
+            modules.Add(new ActionFeatureExtractionModule("doc_end", (text, features, annotations) =>
+            {
+                if (text.Length < 3)
+                {
+                    return;
+                }
+                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_ends_3_" + text.Substring(text.Length - 3, 3), 1.0);
+                if (text.Length < 4)
+                {
+                    return;
+                }
+                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_ends_4_" + text.Substring(text.Length - 4 , 4), 1.0);
+                if (text.Length < 5)
+                {
+                    return;
+                }
+                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_ends_5_" + text.Substring(text.Length - 5, 5), 1.0);
+            }));
+
             //custom module
             //modules.Add(new ActionFeatureExtractionModule("", (text, features, annotations) => {
 
@@ -133,13 +175,13 @@ namespace LightNlp.Demo
 
             //configure which modules to use
             #region 2 - Configure which module configurations
-            //string settingsConfig = "annotate_words,plain_bow,npref_2,npref_3,npref_4,nsuff_2,nsuff_3,nsuff_4,chngram_2,chngram_3,chngram_4,plain_word_stems,word2gram,word3gram, word4gram,count_punct,emoticons_dnevnikbg";
-            string settingsConfig = "annotate_words,plain_bow,npref_2,npref_3,npref_4,nsuff_2,nsuff_3,nsuff_4,chngram_2,chngram_3,chngram_4,plain_word_stems,word2gram,word3gram, word4gram";
+            string modulesConfig = "annotate_words,plain_bow,npref_2,npref_3,npref_4,nsuff_2,nsuff_3,nsuff_4,chngram_2,chngram_3,chngram_4,plain_word_stems,word2gram,word3gram, word4gram,count_punct,emoticons_dnevnikbg,doc_start,doc_end";
+            //string settingsConfig = "annotate_words,plain_bow,npref_2,npref_3,npref_4,nsuff_2,nsuff_3,nsuff_4,chngram_2,chngram_3,chngram_4,word2gram,doc_start,doc_end";
             //string settingsConfig = "annotate_words,plain_word_stems, npref_4, nsuff_3";
 
             Console.WriteLine("Module configurations:");
 
-            var moduleNamesToConfigure = settingsConfig.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            var moduleNamesToConfigure = modulesConfig.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var moduleName in moduleNamesToConfigure)
             {
                 Console.WriteLine(moduleName);
@@ -176,7 +218,6 @@ namespace LightNlp.Demo
             Dictionary<string, int> classLabels = new Dictionary<string, int>();
             int maxClassLabelIndex = 0;
 
-
             using (var filereader = new LabeledTextDocumentFileReader(inputFile))
             {
                 while (!filereader.EndOfSource())
@@ -207,6 +248,7 @@ namespace LightNlp.Demo
             }
 
             //order classes by name - until now they are ordered by first occurence in dataset
+            string classLabelsFileName = inputFile + ".classlabels";
             var ordered = classLabels.OrderBy(cv => cv.Key);
             var orderedClassLabels = new Dictionary<string, int>();
             int classIndexCounter = 0;
@@ -216,6 +258,8 @@ namespace LightNlp.Demo
                 classIndexCounter++;
             }
             classLabels = orderedClassLabels;
+            LexiconReaderHelper.SaveDictionaryToFile(classLabels, classLabelsFileName);
+            Console.WriteLine("Class labels saved to file {0}", classLabelsFileName);
 
             Console.WriteLine("Extracted {0} features from {1} documents", featureStatisticsDictBuilder.FeatureInfoStatistics.Count, itemsCnt);
             Console.WriteLine("Done - {0}", (DateTime.Now - timeStart));
@@ -225,7 +269,7 @@ namespace LightNlp.Demo
             Console.WriteLine("Selected {0} features with min freq {1} ", featureStatisticsDictBuilder.FeatureInfoStatistics.Count, minFeaturesFrequency);
 
             //save fetures for later use
-            string featuresDictFile = inputFile + ".feature";
+            string featuresDictFile = inputFile + ".features";
             if (System.IO.File.Exists(featuresDictFile))
             {
                 System.IO.File.Delete(featuresDictFile);
@@ -237,6 +281,7 @@ namespace LightNlp.Demo
 
             //4- Load features from file
             featureStatisticsDictBuilder.LoadFromFile(featuresDictFile);
+            classLabels = LexiconReaderHelper.LoadDictionaryFromFile(classLabelsFileName);
 
             #region 5 - Build items with features from text documents and features dictionary
             //Build libsvm file from text insput file and features dictionary
@@ -266,7 +311,7 @@ namespace LightNlp.Demo
                         //Append extracted features
 
                         //A - Extracted indexed features
-                        var itemIndexedFeatures = LibSvmFileBuilder.GetIndexedFeaturesFromStringFeatures(docFeatures, featureStatisticsDictBuilder.FeatureInfoStatistics, minFeaturesFrequency, true, ScaleRange.MinusOneToOne);
+                        var itemIndexedFeatures = LibSvmFileBuilder.GetIndexedFeaturesFromStringFeatures(docFeatures, featureStatisticsDictBuilder.FeatureInfoStatistics, minFeaturesFrequency, true, ScaleRange.ZeroToOne);
                         libSvmFileBuilder.AppendItem(classLabelIndex, itemIndexedFeatures);
                         sparseItemsWithIndexFeatures.Add(new SparseItemInt() { Label = classLabelIndex, Features = itemIndexedFeatures });
 
@@ -334,18 +379,25 @@ namespace LightNlp.Demo
             var modelLoaded = Model.load(modelFile);
 
             //evaluation
-            FeatureNode[][] problemXEval = null;
-            double[] problemYEval = null;
-            SetLibLinearProblemXandYFromSparseItems(testItems, out problemXEval, out problemYEval);
+            List<FeatureNode[]> problemXEvalList = new List<FeatureNode[]>();
+            List<double> problemYEvalList = new List<double>();
+            //SetLibLinearProblemXandYFromSparseItems(testItems, out problemXEval, out problemYEval);
 
             List<double> predictedY = new List<double>();
-            foreach (var item in problemXEval)
+            foreach (var item in testItems)
             {
-                double prediction = Linear.predict(model, item);
+                var itemFeatureNodes = ConvertToSortedFeatureNodeArray(item.Features);
+                
+                //fill eval list
+                problemXEvalList.Add(itemFeatureNodes);
+                problemYEvalList.Add((double)item.Label);
+
+                //predict
+                double prediction = Linear.predict(model, itemFeatureNodes);
                 predictedY.Add(prediction);
             }
 
-            int[][] matrix = BuildConfusionMatrix(problemYEval, predictedY, classLabels.Count);
+            int[][] matrix = BuildConfusionMatrix(problemYEvalList.ToArray(), predictedY, classLabels.Count);
 
             Console.WriteLine("Class labels:");
             foreach (var label in classLabels)
@@ -392,7 +444,7 @@ namespace LightNlp.Demo
             //WriteResult(target);
             #endregion
 
-            //Console.ReadKey();
+            Console.ReadKey();
 
             //var instancesToTest = new Feature[] { new FeatureNode(1, 0.0), new FeatureNode(2, 1.0) };
             //var prediction = Linear.predict(model, instancesToTest);

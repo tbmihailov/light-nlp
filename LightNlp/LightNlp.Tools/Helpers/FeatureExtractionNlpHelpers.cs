@@ -34,7 +34,8 @@ namespace LightNlp.Tools.Helpers
             var matches = regex.Matches(text);
             foreach (Match match in matches)
             {
-                if (match.Groups.Count > 1) {
+                if (match.Groups.Count > 1)
+                {
                     for (int i = 1; i <= match.Groups.Count; i++)
                     {
                         var annotation = new Annotation();
@@ -51,6 +52,26 @@ namespace LightNlp.Tools.Helpers
                         annotations.Add(annotation);
                     }
                 }
+            }
+        }
+
+        public static void TokenizeBySplittingAndAppendAnnotations(string text, List<Annotation> annotations)
+        {
+            string type = "Word";
+
+            //Regex regex = new Regex(@"([#\w]+)");
+            var matches = Tokenize(text);
+            foreach (var match in matches)
+            {
+
+                var annotation = new Annotation();
+                
+                annotation.Text = match;
+                annotation.Type = type;
+                annotation.FromIndex = 0;
+                annotation.ToIndex = 0;
+                annotations.Add(annotation);
+
             }
         }
 
@@ -76,8 +97,8 @@ namespace LightNlp.Tools.Helpers
 
         public static void ExtractWordNGramFeaturesFromTextTokensAndUpdateItemFeatures(Dictionary<string, double> item, List<string> commentTokens, int ngramLength)
         {
-            string prefix = string.Format("word{0}gram",ngramLength);
-            if(commentTokens.Count < ngramLength)
+            string prefix = string.Format("word{0}gram", ngramLength);
+            if (commentTokens.Count < ngramLength)
             {
                 return;
             }
@@ -88,7 +109,7 @@ namespace LightNlp.Tools.Helpers
                 sbNgramToken.AppendFormat("{0}_{1}", prefix, commentTokens[i]);
                 for (int j = 1; j < ngramLength; j++)
                 {
-                    sbNgramToken.AppendFormat("_{0}",commentTokens[i+j]);
+                    sbNgramToken.AppendFormat("_{0}", commentTokens[i + j]);
                 }
                 item.IncreaseFeatureFrequency(sbNgramToken.ToString(), 1);
             }
