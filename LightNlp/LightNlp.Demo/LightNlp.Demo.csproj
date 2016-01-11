@@ -130,10 +130,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="LibSvmFileBuilder.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SparseItemInt.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\LightNlp.Core\LightNlp.Core.csproj">
@@ -152,9 +150,10 @@
     <Content Include="data\sofia-signals-title-categorylevel1.train.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="data\document-types-so-culture.txt">
+    <Content Include="Readme.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <None Include="data\document-types-so-culture.txt" />
     <Content Include="data\sofia-signals-Description-CategoryLevel1.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
@@ -167,13 +166,13 @@
     <Content Include="data\sofia-signals-TitleAndDescription-CategoryLevel1.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="data\troll-comments.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
+    <None Include="data\troll-comments.txt" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
-    <None Include="packages.config" />
+    <None Include="packages.config">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

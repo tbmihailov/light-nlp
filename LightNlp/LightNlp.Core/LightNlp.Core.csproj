@@ -52,6 +52,7 @@
     <Compile Include="Modules\IFeatureExtractionModule.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <Content Include="Libs\LibSvmHelper\LibSvmHelper.dll" />
     <Content Include="Libs\LibSvmHelper\LibSvmHelper.pdb" />

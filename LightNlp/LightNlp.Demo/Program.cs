@@ -26,6 +26,79 @@ namespace LightNlp.Demo
             modules.Add(new ActionFeatureExtractionModule("annotate_words", (text, features, annotations) =>
             {
                 FeatureExtractionNlpHelpers.TokenizeAndAppendAnnotations(text, annotations);
+
+                var wordAnnotations = annotations.Where(a => a.Type == "Word").ToList();
+                foreach (var wordAnn in wordAnnotations)
+                {
+                    var loweredWordAnnotation = new Annotation() { Type = "Word_Lowered", Text = wordAnn.Text.ToLower(), FromIndex = wordAnn.FromIndex, ToIndex = wordAnn.ToIndex };
+                    annotations.Add(loweredWordAnnotation);
+                }
+            }));
+
+            modules.Add(new ActionFeatureExtractionModule("annotate_words_troll_sentence", (text, features, annotations) =>
+            {
+                List<Annotation> annotationsAll = new List<Annotation>();
+
+                string txt = text.Replace(",", " , ").Replace(";", " ; ").Replace("?", " ? ");
+                FeatureExtractionNlpHelpers.TokenizeAndAppendAnnotationsRegEx(txt, annotationsAll, @"([#\w,;?-]+)");
+
+                var annotationsTroll = annotationsAll.Where(a => a.Text.ToLower().StartsWith("трол") || a.Text.ToLower().StartsWith("мурзи")).ToList();
+
+                var annotationsTrollWindow = new List<Annotation>();
+
+                int wordScope = 2;
+                foreach (var ann in annotationsTroll)
+                {
+                    int trollIndex = annotationsAll.IndexOf(ann);
+                    for (int i = Math.Max((trollIndex - wordScope), 0); i < Math.Min((trollIndex + wordScope), annotationsAll.Count); i++)
+                    {
+                        var annToAdd = annotationsAll[i];
+                        if (!annotationsTrollWindow.Contains(annToAdd))
+                        {
+                            annotationsTrollWindow.Add(annToAdd);
+                        }
+                    }
+                }
+
+                foreach (var ann in annotationsTrollWindow)
+                {
+                    annotations.Add(ann);
+                }
+
+                Console.WriteLine(string.Join(" ", annotations.Select(a => a.Text)));
+                var wordAnnotations = annotations.Where(a => a.Type == "Word").ToList();
+                foreach (var wordAnn in wordAnnotations)
+                {
+                    var loweredWordAnnotation = new Annotation() { Type = "Word_Lowered", Text = wordAnn.Text.ToLower(), FromIndex = wordAnn.FromIndex, ToIndex = wordAnn.ToIndex };
+                    annotations.Add(loweredWordAnnotation);
+                }
+            }));
+
+            modules.Add(new ActionFeatureExtractionModule("annotate_words_troll_words", (text, features, annotations) =>
+            {
+                List<Annotation> annotationsAll = new List<Annotation>();
+
+                string txt = text.Replace(",", " , ").Replace(";", " ; ").Replace("?", " ? ");
+                FeatureExtractionNlpHelpers.TokenizeAndAppendAnnotationsRegEx(txt, annotationsAll, @"([#\w,;?-]+)");
+
+                List<string> allowedWords = new List<string>()
+                {
+                    "аз","ти","той","тя","то","ние","вие","те",
+                    "съм","си","е","сте","са","сме",
+                    "ми","ни","ви","им","му",
+                    "нас","вас","тях",
+                    "ги", "го", "я"
+                    
+                    //"коя","кое","кои","кой",
+                };
+                annotationsAll = annotationsAll.Where(a => a.Text.ToLower().StartsWith("трол") || a.Text.ToLower().StartsWith("мурзи") || allowedWords.Contains(a.Text.ToLower())).ToList();
+
+                foreach (var ann in annotationsAll)
+                {
+                    annotations.Add(ann);
+                }
+
+                Debug.WriteLine(string.Join(" ", annotations.Select(a => a.Text)));
                 var wordAnnotations = annotations.Where(a => a.Type == "Word").ToList();
                 foreach (var wordAnn in wordAnnotations)
                 {
@@ -153,7 +226,7 @@ namespace LightNlp.Demo
                 {
                     return;
                 }
-                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_ends_4_" + text.Substring(text.Length - 4 , 4), 1.0);
+                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_ends_4_" + text.Substring(text.Length - 4, 4), 1.0);
                 if (text.Length < 5)
                 {
                     return;
@@ -173,10 +246,16 @@ namespace LightNlp.Demo
             }
             #endregion
 
+
+            
             //configure which modules to use
             #region 2 - Configure which module configurations
-            string modulesConfig = "annotate_words,plain_bow,npref_2,npref_3,npref_4,nsuff_2,nsuff_3,nsuff_4,chngram_2,chngram_3,chngram_4,plain_word_stems,word2gram,word3gram, word4gram,count_punct,emoticons_dnevnikbg,doc_start,doc_end";
-            //string settingsConfig = "annotate_words,plain_bow,npref_2,npref_3,npref_4,nsuff_2,nsuff_3,nsuff_4,chngram_2,chngram_3,chngram_4,word2gram,doc_start,doc_end";
+            //string modulesConfig = "annotate_words,plain_bow,npref_2,npref_3,npref_4,nsuff_2,nsuff_3,nsuff_4,chngram_2,chngram_3,chngram_4,plain_word_stems,word2gram,word3gram, word4gram,count_punct,emoticons_dnevnikbg,doc_start,doc_end";
+            string modulesConfig = "annotate_words,plain_bow,nsuff_3,chngram_3,word2gram,doc_end";
+            if (args.Length > 1)
+            {
+                modulesConfig = args[1];
+            }
             //string settingsConfig = "annotate_words,plain_word_stems, npref_4, nsuff_3";
 
             Console.WriteLine("Module configurations:");
@@ -199,7 +278,7 @@ namespace LightNlp.Demo
             #endregion
 
             //Process input file
-            string inputFile = "troll-comments.txt";
+            string inputFile = "data\troll-comments.txt";
             if (args.Length > 0)
             {
                 inputFile = args[0];
@@ -290,6 +369,9 @@ namespace LightNlp.Demo
             var sparseItemsWithIndexFeatures = new List<SparseItemInt>();
             timeStart = DateTime.Now;
             Console.WriteLine("Exporting to libsvm file format...");
+
+            bool normalize = false;
+            var scaleRange = ScaleRange.ZeroToOne;
             using (System.IO.TextWriter textWriter = new System.IO.StreamWriter(libSvmFileName, false))
             {
                 LibSvmFileBuilder libSvmFileBuilder = new LibSvmFileBuilder(textWriter);
@@ -311,7 +393,7 @@ namespace LightNlp.Demo
                         //Append extracted features
 
                         //A - Extracted indexed features
-                        var itemIndexedFeatures = LibSvmFileBuilder.GetIndexedFeaturesFromStringFeatures(docFeatures, featureStatisticsDictBuilder.FeatureInfoStatistics, minFeaturesFrequency, true, ScaleRange.ZeroToOne);
+                        var itemIndexedFeatures = LibSvmFileBuilder.GetIndexedFeaturesFromStringFeatures(docFeatures, featureStatisticsDictBuilder.FeatureInfoStatistics, minFeaturesFrequency, normalize, scaleRange);
                         libSvmFileBuilder.AppendItem(classLabelIndex, itemIndexedFeatures);
                         sparseItemsWithIndexFeatures.Add(new SparseItemInt() { Label = classLabelIndex, Features = itemIndexedFeatures });
 
@@ -387,7 +469,7 @@ namespace LightNlp.Demo
             foreach (var item in testItems)
             {
                 var itemFeatureNodes = ConvertToSortedFeatureNodeArray(item.Features);
-                
+
                 //fill eval list
                 problemXEvalList.Add(itemFeatureNodes);
                 problemYEvalList.Add((double)item.Label);
@@ -418,7 +500,7 @@ namespace LightNlp.Demo
                 double fScore;
 
                 CalculatePRF(truePositivesCnt, falsePositievesCnt, falseNegativesCnt, out precision, out recall, out fScore);
-                Console.WriteLine(string.Format("[{0} - {4}] P={1:0.00}, R={2:0.00}, F={3:0.00} ", i, precision, recall, fScore, orderedClassLabels.ToList().ToDictionary(kv => kv.Value, kv => kv.Key)[i]));
+                Console.WriteLine(string.Format("[{0} - {4}] P={1:0.0000}, R={2:0.0000}, F={3:0.0000} ", i, precision, recall, fScore, orderedClassLabels.ToList().ToDictionary(kv => kv.Value, kv => kv.Key)[i]));
             }
 
             int truePositivesCntOverall = 0;
@@ -430,7 +512,7 @@ namespace LightNlp.Demo
             }
 
             double accuracyOverall = (double)truePositivesCntOverall / (double)testedCnt;
-            Console.WriteLine(string.Format("[{0}] Accuracy={1:0.00}", "Overall", accuracyOverall));
+            Console.WriteLine(string.Format("[{0}] Accuracy={1:0.0000}", "Overall", accuracyOverall));
 
 
             //CROSSVALIDATION
@@ -444,7 +526,7 @@ namespace LightNlp.Demo
             //WriteResult(target);
             #endregion
 
-            Console.ReadKey();
+            //Console.ReadKey();
 
             //var instancesToTest = new Feature[] { new FeatureNode(1, 0.0), new FeatureNode(2, 1.0) };
             //var prediction = Linear.predict(model, instancesToTest);
@@ -463,7 +545,6 @@ namespace LightNlp.Demo
             //}
         }
 
-
         private static void CalculatePRF(int truePositives, int falsePositive, int falseNegatives, out double precision, out double recall, out double fScore)
         {
             precision = (double)truePositives / ((double)truePositives + (double)falsePositive);
@@ -473,19 +554,19 @@ namespace LightNlp.Demo
 
         private static void PrintMatrix(int[][] matrix, bool printClassLabels)
         {
-            Console.Write(string.Format("{0,5}", string.Empty));
+            Console.Write(string.Format("{0,7}", string.Empty));
             for (int j = 0; j < matrix[0].Length; j++)
             {
-                Console.Write(string.Format("{0,5}", j));
+                Console.Write(string.Format("{0,7}", j));
             }
 
             Console.WriteLine();
             for (int i = 0; i < matrix.Length; i++)
             {
-                Console.Write(string.Format("{0,5}", i));
+                Console.Write(string.Format("{0,7}", i));
                 for (int j = 0; j < matrix[i].Length; j++)
                 {
-                    Console.Write(string.Format("{0,5}", matrix[i][j]));
+                    Console.Write(string.Format("{0,7}", matrix[i][j]));
                 }
                 Console.WriteLine();
             }

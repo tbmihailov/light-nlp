@@ -1,5 +1,4 @@
 ﻿using BulStem;
-using LibSvmHelper;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -55,6 +54,35 @@ namespace LightNlp.Tools.Helpers
             }
         }
 
+        public static void TokenizeAndAppendAnnotationsRegEx(string text, List<Annotation> annotations, string regexStr = @"([#\w,;?-]+)")
+        {
+            string type = "Word";
+
+            Regex regex = new Regex(regexStr);
+            var matches = regex.Matches(text);
+            foreach (Match match in matches)
+            {
+                if (match.Groups.Count > 1)
+                {
+                    for (int i = 1; i <= match.Groups.Count; i++)
+                    {
+                        var annotation = new Annotation();
+                        var group = match.Groups[i];
+
+                        if (group.Length == 0)
+                        {
+                            continue;
+                        }
+                        annotation.Text = group.Value;
+                        annotation.Type = type;
+                        annotation.FromIndex = group.Index;
+                        annotation.ToIndex = group.Index + group.Length - 1;
+                        annotations.Add(annotation);
+                    }
+                }
+            }
+        }
+
         public static void TokenizeBySplittingAndAppendAnnotations(string text, List<Annotation> annotations)
         {
             string type = "Word";
@@ -65,7 +93,7 @@ namespace LightNlp.Tools.Helpers
             {
 
                 var annotation = new Annotation();
-                
+
                 annotation.Text = match;
                 annotation.Type = type;
                 annotation.FromIndex = 0;
@@ -236,6 +264,41 @@ namespace LightNlp.Tools.Helpers
         {
             List<string> commentTokens = commentText.ToLower().Split(new char[] { ',', ' ', ';', ':', '\t', '\r', '\n', '(', ')', '?', '.', '!' }, StringSplitOptions.RemoveEmptyEntries).ToList();
             return commentTokens;
+        }
+
+
+        /// <summary>
+        /// Tokenize words using regex. Sample: @"([#\w,;?-]+)"
+        /// </summary>
+        /// <param name="regexStr"></param>
+        /// <param name="text"></param>
+        /// <returns></returns>
+        public static List<string> TokenizeRegEx(string regexStr, string text)
+        {
+            //string type = "Word";
+            //regexStr = @"([#\w,;?-]+)";
+            List<string> tokens = new List<string>();
+            Regex regex = new Regex(regexStr);
+            var matches = regex.Matches(text);
+            foreach (Match match in matches)
+            {
+                if (match.Groups.Count > 1)
+                {
+                    for (int i = 1; i <= match.Groups.Count; i++)
+                    {
+                        var group = match.Groups[i];
+
+                        if (group.Length == 0)
+                        {
+                            continue;
+                        }
+                        string token = group.Value;
+                        tokens.Add(token);
+                    }
+                }
+            }
+
+            return tokens;
         }
 
         public static void SetFeatureToRegExMatchesCount(string pattern, string featureKey, string commentText, Dictionary<string, double> item)
