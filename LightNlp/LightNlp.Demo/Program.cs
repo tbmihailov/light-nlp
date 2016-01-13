@@ -5,6 +5,7 @@ using LibSvmHelper.Helpers;
 using LightNlp.Core;
 using LightNlp.Core.Helpers;
 using LightNlp.Core.Modules;
+using LightNlp.Helpers;
 using LightNlp.Tools.Helpers;
 using LightNlp.Tools.IO;
 using System;
@@ -19,6 +20,19 @@ namespace LightNlp.Demo
     {
         static void Main(string[] args)
         {
+            string modulesConfig = "annotate_words,plain_bow,nsuff_3,chngram_3,word2gram,doc_end";
+            if (args.Length > 1)
+            {
+                modulesConfig = args[1];
+            }
+
+            //Process input file
+            string inputFile = "data\troll-comments.txt";
+            if (args.Length > 0)
+            {
+                inputFile = args[0];
+            }
+
             //Define feature extraction modules
             #region 1 - Define all possible feature extraction modules
             List<FeatureExtractionModule> modules = new List<FeatureExtractionModule>();
@@ -251,11 +265,7 @@ namespace LightNlp.Demo
             //configure which modules to use
             #region 2 - Configure which module configurations
             //string modulesConfig = "annotate_words,plain_bow,npref_2,npref_3,npref_4,nsuff_2,nsuff_3,nsuff_4,chngram_2,chngram_3,chngram_4,plain_word_stems,word2gram,word3gram, word4gram,count_punct,emoticons_dnevnikbg,doc_start,doc_end";
-            string modulesConfig = "annotate_words,plain_bow,nsuff_3,chngram_3,word2gram,doc_end";
-            if (args.Length > 1)
-            {
-                modulesConfig = args[1];
-            }
+
             //string settingsConfig = "annotate_words,plain_word_stems, npref_4, nsuff_3";
 
             Console.WriteLine("Module configurations:");
@@ -277,15 +287,14 @@ namespace LightNlp.Demo
             }
             #endregion
 
-            //Process input file
-            string inputFile = "data\troll-comments.txt";
-            if (args.Length > 0)
-            {
-                inputFile = args[0];
-            }
+
+            string classLabelsFileName = inputFile + ".classlabels";
+            string featuresDictFile = inputFile + ".features";
+            string libSvmFileName = inputFile + ".libsvm";
+
 
             Console.WriteLine("Input file:{0}", inputFile);
-            char fieldSeparator = '\t';
+            //char fieldSeparator = '\t';
 
             #region 3 - Build features dictionary - process documents and extract all possible features
             //build features dictionary
@@ -327,7 +336,7 @@ namespace LightNlp.Demo
             }
 
             //order classes by name - until now they are ordered by first occurence in dataset
-            string classLabelsFileName = inputFile + ".classlabels";
+            
             var ordered = classLabels.OrderBy(cv => cv.Key);
             var orderedClassLabels = new Dictionary<string, int>();
             int classIndexCounter = 0;
@@ -348,7 +357,6 @@ namespace LightNlp.Demo
             Console.WriteLine("Selected {0} features with min freq {1} ", featureStatisticsDictBuilder.FeatureInfoStatistics.Count, minFeaturesFrequency);
 
             //save fetures for later use
-            string featuresDictFile = inputFile + ".features";
             if (System.IO.File.Exists(featuresDictFile))
             {
                 System.IO.File.Delete(featuresDictFile);
@@ -364,7 +372,6 @@ namespace LightNlp.Demo
 
             #region 5 - Build items with features from text documents and features dictionary
             //Build libsvm file from text insput file and features dictionary
-            string libSvmFileName = inputFile + ".libsvm";
 
             var sparseItemsWithIndexFeatures = new List<SparseItemInt>();
             timeStart = DateTime.Now;
@@ -413,6 +420,10 @@ namespace LightNlp.Demo
             //LIBLINEAR - TRAIN AND EVAL CLASSIFIER
             //Build problem X and Y
 
+            var solver = SolverType.L1R_LR;//L2R_LR
+            var c = 1.0;
+            var eps = 0.01;
+
             //Split data on train and test dataset
             int trainRate = 4;
             int testRate = 1;
@@ -441,10 +452,6 @@ namespace LightNlp.Demo
 
             problem.x = problemXTrain;
             problem.y = problemYTrain;
-
-            var solver = SolverType.L1R_LR;//L2R_LR
-            var c = 1.0;
-            var eps = 0.01;
 
             Console.WriteLine("Training a classifier with {0} items...", sparseItemsWithIndexFeatures.Count);
             timeStart = DateTime.Now;
@@ -479,7 +486,7 @@ namespace LightNlp.Demo
                 predictedY.Add(prediction);
             }
 
-            int[][] matrix = BuildConfusionMatrix(problemYEvalList.ToArray(), predictedY, classLabels.Count);
+            int[][] matrix = ResultCalculationMetricsHelpers.BuildConfusionMatrix(problemYEvalList.ToArray(), predictedY, classLabels.Count);
 
             Console.WriteLine("Class labels:");
             foreach (var label in classLabels)
@@ -487,7 +494,7 @@ namespace LightNlp.Demo
                 Console.WriteLine(string.Format("{1} - {0}", label.Key, label.Value));
             }
             Console.WriteLine();
-            PrintMatrix(matrix, true);
+            ResultCalculationMetricsHelpers.PrintMatrix(matrix, true);
 
             for (int i = 0; i < matrix.Length; i++)
             {
@@ -499,7 +506,7 @@ namespace LightNlp.Demo
                 double recall;
                 double fScore;
 
-                CalculatePRF(truePositivesCnt, falsePositievesCnt, falseNegativesCnt, out precision, out recall, out fScore);
+                ResultCalculationMetricsHelpers.CalculatePRF(truePositivesCnt, falsePositievesCnt, falseNegativesCnt, out precision, out recall, out fScore);
                 Console.WriteLine(string.Format("[{0} - {4}] P={1:0.0000}, R={2:0.0000}, F={3:0.0000} ", i, precision, recall, fScore, orderedClassLabels.ToList().ToDictionary(kv => kv.Value, kv => kv.Key)[i]));
             }
 
@@ -545,55 +552,10 @@ namespace LightNlp.Demo
             //}
         }
 
-        private static void CalculatePRF(int truePositives, int falsePositive, int falseNegatives, out double precision, out double recall, out double fScore)
-        {
-            precision = (double)truePositives / ((double)truePositives + (double)falsePositive);
-            recall = (double)truePositives / ((double)truePositives + (double)falseNegatives);
-            fScore = 2 * (double)precision * (double)recall / ((double)precision + (double)recall);
-        }
-
-        private static void PrintMatrix(int[][] matrix, bool printClassLabels)
-        {
-            Console.Write(string.Format("{0,7}", string.Empty));
-            for (int j = 0; j < matrix[0].Length; j++)
-            {
-                Console.Write(string.Format("{0,7}", j));
-            }
-
-            Console.WriteLine();
-            for (int i = 0; i < matrix.Length; i++)
-            {
-                Console.Write(string.Format("{0,7}", i));
-                for (int j = 0; j < matrix[i].Length; j++)
-                {
-                    Console.Write(string.Format("{0,7}", matrix[i][j]));
-                }
-                Console.WriteLine();
-            }
-        }
-
-        private static int[][] BuildConfusionMatrix(double[] problemYEval, List<double> predictedY, int numberOfLabels)
-        {
-            List<int[]> list = new List<int[]>();
-            for (int i = 0; i < numberOfLabels; i++)
-            {
-                list.Add(new int[numberOfLabels]);
-            }
-
-            int[][] matrix = list.ToArray();
-
-            for (int i = 0; i < problemYEval.Length; i++)
-            {
-                var expectedClassLabel = (int)problemYEval[i];
-                var predictedClassLabel = (int)predictedY[i];
-
-                matrix[expectedClassLabel][predictedClassLabel] = matrix[expectedClassLabel][predictedClassLabel] + 1;
-            }
-            return matrix;
-        }
+        
 
 
-        private static void RecomputeFeatureIndexes(FeatureStatisticsDictionaryBuilder featureStatisticsDictBuilder, int minFeaturesFrequency)
+        public static void RecomputeFeatureIndexes(FeatureStatisticsDictionaryBuilder featureStatisticsDictBuilder, int minFeaturesFrequency)
         {
             int featureIndex = 0;
             Dictionary<string, FeatureInfo> featureInfos = new Dictionary<string, FeatureInfo>();
@@ -641,9 +603,9 @@ namespace LightNlp.Demo
             problemY = problemYList.ToArray();
         }
 
-        private static FeatureNode[] ConvertToSortedFeatureNodeArray(Dictionary<int, double> featuresDictionary)
+        private static FeatureNode[] ConvertToSortedFeatureNodeArray(Dictionary<int, double> itemFeatures)
         {
-            var featuresDictSorted = featuresDictionary.Select(kv => kv).OrderBy(kv => kv.Key).ToDictionary(kv => kv.Key, kv => kv.Value);
+            var featuresDictSorted = itemFeatures.Select(kv => kv).OrderBy(kv => kv.Key).ToDictionary(kv => kv.Key, kv => kv.Value);
             List<FeatureNode> featureNodes = new List<FeatureNode>();
             foreach (var item in featuresDictSorted)
             {

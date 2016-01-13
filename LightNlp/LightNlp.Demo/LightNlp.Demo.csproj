@@ -138,6 +138,10 @@
       <Project>{b4e6294d-8f6e-47c4-a620-0802e60d366d}</Project>
       <Name>LightNlp.Core</Name>
     </ProjectReference>
+    <ProjectReference Include="..\LightNlp.Helpers\LightNlp.Helpers.csproj">
+      <Project>{3c3c7a4a-86ce-455d-816f-a579561b6d55}</Project>
+      <Name>LightNlp.Helpers</Name>
+    </ProjectReference>
     <ProjectReference Include="..\LightNlp.Tools\LightNlp.Tools.csproj">
       <Project>{a71d983b-cbb7-4bed-a013-159393e40cf7}</Project>
       <Name>LightNlp.Tools</Name>
@@ -174,6 +178,7 @@
       <SubType>Designer</SubType>
     </None>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
