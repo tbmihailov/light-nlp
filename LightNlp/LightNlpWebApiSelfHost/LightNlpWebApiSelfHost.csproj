@@ -232,10 +232,13 @@
   <ItemGroup>
     <Compile Include="Controllers\ClassificationResult.cs" />
     <Compile Include="Controllers\ServicesController.cs" />
+    <Compile Include="ModelConfiguration.cs" />
     <Compile Include="Models\ApplicationDbContext.cs" />
     <Compile Include="Models\AuthModels.cs" />
     <Compile Include="Models\PostItem.cs" />
     <Compile Include="OAuthServerProvider\ApplicationOAuthServerProvider.cs" />
+    <Compile Include="PipelineConfiguration.cs" />
+    <Compile Include="ProcessingHelpers.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Startup.cs" />

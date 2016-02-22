@@ -39,256 +39,44 @@ namespace LightNlpWebApiSelfHost
                 Console.WriteLine("Starting LightNlp web Server...");
                 WebApp.Start<Startup>(baseUri);
                 Console.WriteLine("Server running at {0} - press Enter to quit. ", baseUri);
+                Console.WriteLine("Demo at: "+baseUri+"/api/Services/Categorize?jsonContent={%22id%22:1,%22text%22:%22some%20example%20text%20here%22}");
                 Console.ReadLine();
             }
             else if (command == "train")
             {
-                string modulesConfig = ConfigurationManager.AppSettings["PIPELINE_MODULES_CONFIG"] ?? "annotate_words,plain_bow,nsuff_3,chngram_3,word2gram,doc_end";
-                string inputRawFile = ConfigurationManager.AppSettings["TRAIN_RAW_FILE"] ?? "data\troll-comments.txt";
+                string modulesConfig, inputRawFile, classLabelsOutputFileName, featuresDictOutputFile, modelOutputFileName, libSvmOutputFileName;
+                SolverType liblinearSolver;
+                double liblinearC, liblinearEps;
+                int minFeaturesFrequency;
+                bool normalize;
+                ScaleRange scaleRange;
 
-                string classLabelsOutputFileName = ConfigurationManager.AppSettings["MODEL_CLASSLABELS_FILE"] != null ? ConfigurationManager.AppSettings["MODEL_CLASSLABELS_FILE"] : inputRawFile + ".classlabels";
-                string featuresDictOutputFile = ConfigurationManager.AppSettings["MODEL_FEATURES_FILE"] != null ? ConfigurationManager.AppSettings["MODEL_FEATURES_FILE"] : inputRawFile + ".features";
-                string modelOutputFileName = ConfigurationManager.AppSettings["MODEL_MODEL_FILE"] != null ? ConfigurationManager.AppSettings["MODEL_MODEL_FILE"] : inputRawFile + ".model";
-                string libSvmOutputFileName = inputRawFile + ".libsvm";
+                ModelConfiguration.SetParams(out modulesConfig, out inputRawFile, out classLabelsOutputFileName, out featuresDictOutputFile, out modelOutputFileName, out libSvmOutputFileName, out liblinearSolver, out liblinearC, out liblinearEps, out minFeaturesFrequency, out normalize, out scaleRange);
 
-                var liblinearSolver = SolverType.L1R_LR;//L2R_LR
-                var liblinearC = ConfigurationManager.AppSettings["LIBLINEAR_C"] != null ? double.Parse(ConfigurationManager.AppSettings["LIBLINEAR_C"]) : 1.0;
-                var liblinearEps = ConfigurationManager.AppSettings["LIBLINEAR_EPS"] != null ? double.Parse(ConfigurationManager.AppSettings["LIBLINEAR_EPS"]) : 0.01;
-
-                Train(modulesConfig, 
-                    inputRawFile, 
-                    liblinearSolver, 
-                    liblinearC, 
+                Train(modulesConfig,
+                    inputRawFile,
+                    liblinearSolver,
+                    liblinearC,
                     liblinearEps,
                     classLabelsOutputFileName,
                     featuresDictOutputFile,
                     modelOutputFileName,
-                    libSvmOutputFileName);
+                    libSvmOutputFileName,
+                    minFeaturesFrequency,
+                    normalize,
+                    scaleRange);
             }
         }
 
+        
+
         public static void Train(string modulesConfig, string inputRawFile, SolverType liblinearSolver, double liblinearC, double liblinearEps,
-                string classLabelsOutputFileName, string featuresDictOutputFile, string modelOutputFileName, string libSvmOutputFileName)
+                string classLabelsOutputFileName, string featuresDictOutputFile, string modelOutputFileName, string libSvmOutputFileName, 
+                int minFeaturesFrequency,bool normalize, ScaleRange scaleRange)
         {
             //Define feature extraction modules
             #region 1 - Define all possible feature extraction modules
-            List<FeatureExtractionModule> modules = new List<FeatureExtractionModule>();
-            //Extract words from text and add them as annotations for later use
-            modules.Add(new ActionFeatureExtractionModule("annotate_words", (text, features, annotations) =>
-            {
-                FeatureExtractionNlpHelpers.TokenizeAndAppendAnnotations(text, annotations);
-
-                var wordAnnotations = annotations.Where(a => a.Type == "Word").ToList();
-                foreach (var wordAnn in wordAnnotations)
-                {
-                    var loweredWordAnnotation = new Annotation() { Type = "Word_Lowered", Text = wordAnn.Text.ToLower(), FromIndex = wordAnn.FromIndex, ToIndex = wordAnn.ToIndex };
-                    annotations.Add(loweredWordAnnotation);
-                }
-            }));
-
-            modules.Add(new ActionFeatureExtractionModule("annotate_words_troll_sentence", (text, features, annotations) =>
-            {
-                List<Annotation> annotationsAll = new List<Annotation>();
-
-                string txt = text.Replace(",", " , ").Replace(";", " ; ").Replace("?", " ? ");
-                FeatureExtractionNlpHelpers.TokenizeAndAppendAnnotationsRegEx(txt, annotationsAll, @"([#\w,;?-]+)");
-
-                var annotationsTroll = annotationsAll.Where(a => a.Text.ToLower().StartsWith("трол") || a.Text.ToLower().StartsWith("мурзи")).ToList();
-
-                var annotationsTrollWindow = new List<Annotation>();
-
-                int wordScope = 2;
-                foreach (var ann in annotationsTroll)
-                {
-                    int trollIndex = annotationsAll.IndexOf(ann);
-                    for (int i = Math.Max((trollIndex - wordScope), 0); i < Math.Min((trollIndex + wordScope), annotationsAll.Count); i++)
-                    {
-                        var annToAdd = annotationsAll[i];
-                        if (!annotationsTrollWindow.Contains(annToAdd))
-                        {
-                            annotationsTrollWindow.Add(annToAdd);
-                        }
-                    }
-                }
-
-                foreach (var ann in annotationsTrollWindow)
-                {
-                    annotations.Add(ann);
-                }
-
-                Console.WriteLine(string.Join(" ", annotations.Select(a => a.Text)));
-                var wordAnnotations = annotations.Where(a => a.Type == "Word").ToList();
-                foreach (var wordAnn in wordAnnotations)
-                {
-                    var loweredWordAnnotation = new Annotation() { Type = "Word_Lowered", Text = wordAnn.Text.ToLower(), FromIndex = wordAnn.FromIndex, ToIndex = wordAnn.ToIndex };
-                    annotations.Add(loweredWordAnnotation);
-                }
-            }));
-
-            modules.Add(new ActionFeatureExtractionModule("annotate_words_troll_words", (text, features, annotations) =>
-            {
-                List<Annotation> annotationsAll = new List<Annotation>();
-
-                string txt = text.Replace(",", " , ").Replace(";", " ; ").Replace("?", " ? ");
-                FeatureExtractionNlpHelpers.TokenizeAndAppendAnnotationsRegEx(txt, annotationsAll, @"([#\w,;?-]+)");
-
-                List<string> allowedWords = new List<string>()
-                {
-                    "аз","ти","той","тя","то","ние","вие","те",
-                    "съм","си","е","сте","са","сме",
-                    "ми","ни","ви","им","му",
-                    "нас","вас","тях",
-                    "ги", "го", "я"
-                    
-                    //"коя","кое","кои","кой",
-                };
-                annotationsAll = annotationsAll.Where(a => a.Text.ToLower().StartsWith("трол") || a.Text.ToLower().StartsWith("мурзи") || allowedWords.Contains(a.Text.ToLower())).ToList();
-
-                foreach (var ann in annotationsAll)
-                {
-                    annotations.Add(ann);
-                }
-
-                Debug.WriteLine(string.Join(" ", annotations.Select(a => a.Text)));
-                var wordAnnotations = annotations.Where(a => a.Type == "Word").ToList();
-                foreach (var wordAnn in wordAnnotations)
-                {
-                    var loweredWordAnnotation = new Annotation() { Type = "Word_Lowered", Text = wordAnn.Text.ToLower(), FromIndex = wordAnn.FromIndex, ToIndex = wordAnn.ToIndex };
-                    annotations.Add(loweredWordAnnotation);
-                }
-            }));
-
-            //Generate bag of words features
-            modules.Add(new ActionFeatureExtractionModule("plain_bow", (text, features, annotations) =>
-            {
-                var wordAnnotations = annotations.Where(a => a.Type == "Word_Lowered").ToList();
-                foreach (var wordAnn in wordAnnotations)
-                {
-                    FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "plain_bow_" + wordAnn.Text.ToLower(), 1.0);
-                }
-            }));
-
-            //Generate word prefixes from all lowered word tokens
-            int[] charPrefixLengths = new int[] { 2, 3, 4 };
-            foreach (var charPrefLength in charPrefixLengths)
-            {
-                modules.Add(new ActionFeatureExtractionModule("npref_" + charPrefLength, (text, features, annotations) =>
-                {
-                    var wordAnnotations = annotations.Where(a => a.Type == "Word_Lowered").ToList();
-                    foreach (var wordAnn in wordAnnotations)
-                    {
-                        FeatureExtractionNlpHelpers.ExtractPrefixFeatureFromSingleTokenAndUpdateItemFeatures(features, wordAnn.Text.ToLower(), charPrefLength);
-                    }
-                }));
-            }
-
-            //Generate word suffixes from all lowered word tokens
-            int[] charSuffixLengths = new int[] { 2, 3, 4 };
-            foreach (var charSuffLength in charSuffixLengths)
-            {
-                modules.Add(new ActionFeatureExtractionModule("nsuff_" + charSuffLength, (text, features, annotations) =>
-                {
-                    var wordAnnotations = annotations.Where(a => a.Type == "Word_Lowered").ToList();
-                    foreach (var wordAnn in wordAnnotations)
-                    {
-                        FeatureExtractionNlpHelpers.ExtractSuffixFeatureFromSingleTokenAndUpdateItemFeatures(features, wordAnn.Text.ToLower(), charSuffLength);
-                    }
-                }));
-            }
-
-            //Generate word character ngrams
-            int[] charNGramLengths = new int[] { 2, 3, 4 };
-            foreach (var charNGramLength in charNGramLengths)
-            {
-                modules.Add(new ActionFeatureExtractionModule("chngram_" + charNGramLength, (text, features, annotations) =>
-                {
-                    var wordAnnotations = annotations.Where(a => a.Type == "Word_Lowered").ToList();
-                    foreach (var wordAnn in wordAnnotations)
-                    {
-                        FeatureExtractionNlpHelpers.ExtractCharNgramFeaturesFromSingleTokenAndUpdateItemFeatures(features, wordAnn.Text.ToLower(), charNGramLength);
-                    }
-                }));
-            }
-
-            //Generate Stemmed word features, using Bulstem(P.Nakov)
-            bool useStemmer = true;
-            Stemmer stemmer = useStemmer ? new Stemmer(StemmingLevel.Medium) : null;
-            modules.Add(new ActionFeatureExtractionModule("plain_word_stems", (text, features, annotations) =>
-            {
-                var wordAnnotations = annotations.Where(a => a.Type == "Word_Lowered").ToList();
-                foreach (var wordAnn in wordAnnotations)
-                {
-                    FeatureExtractionNlpHelpers.ExtractStemFeatureFromSingleTokenAndUpdateItemFeatures(stemmer, features, wordAnn.Text.ToLower());
-                }
-            }));
-
-            //Generate Word Ngram features
-            int[] wordNgramLengths = new int[] { 2, 3, 4 };
-            foreach (var ngramLength in wordNgramLengths)
-            {
-                modules.Add(new ActionFeatureExtractionModule(string.Format("word{0}gram", ngramLength), (text, features, annotations) =>
-                {
-                    var wordTokens = annotations.Where(a => a.Type == "Word_Lowered").Select(a => a.Text).ToList();
-                    FeatureExtractionNlpHelpers.ExtractWordNGramFeaturesFromTextTokensAndUpdateItemFeatures(features, wordTokens, ngramLength);
-                }));
-            }
-
-            modules.Add(new ActionFeatureExtractionModule("count_punct", (text, features, annotations) =>
-            {
-                FeatureExtractionNlpHelpers.ExtractTextPunctuationFeaturesAndUpdateItemFeatures(text, features);
-            }));
-
-            modules.Add(new ActionFeatureExtractionModule("emoticons_dnevnikbg", (text, features, annotations) =>
-            {
-                FeatureExtractionNlpHelpers.ExtractDnevnikEmoticonsFeaturesAndUpdateItemFeatures(text, features);
-            }));
-
-            //Doc starts with
-            modules.Add(new ActionFeatureExtractionModule("doc_start", (text, features, annotations) =>
-            {
-                if (text.Length < 3)
-                {
-                    return;
-                }
-                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_starts_3_" + text.Substring(0, 3), 1.0);
-
-                if (text.Length < 4)
-                {
-                    return;
-                }
-                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_starts_4_" + text.Substring(0, 4), 1.0);
-
-                if (text.Length < 5)
-                {
-                    return;
-                }
-                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_starts_5_" + text.Substring(0, 5), 1.0);
-            }));
-
-            //Doc ends with
-            modules.Add(new ActionFeatureExtractionModule("doc_end", (text, features, annotations) =>
-            {
-                if (text.Length < 3)
-                {
-                    return;
-                }
-                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_ends_3_" + text.Substring(text.Length - 3, 3), 1.0);
-                if (text.Length < 4)
-                {
-                    return;
-                }
-                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_ends_4_" + text.Substring(text.Length - 4, 4), 1.0);
-                if (text.Length < 5)
-                {
-                    return;
-                }
-                FeaturesDictionaryHelpers.IncreaseFeatureFrequency(features, "doc_ends_5_" + text.Substring(text.Length - 5, 5), 1.0);
-            }));
-
-            //custom module
-            //modules.Add(new ActionFeatureExtractionModule("", (text, features, annotations) => {
-
-            //}));
+            List<FeatureExtractionModule> modules = PipelineConfiguration.GetExtractionModules();
 
             //Print possible module options
             foreach (var module in modules)
@@ -303,25 +91,8 @@ namespace LightNlpWebApiSelfHost
 
             //string settingsConfig = "annotate_words,plain_word_stems, npref_4, nsuff_3";
 
-            Console.WriteLine("Module configurations:");
-
-            var moduleNamesToConfigure = modulesConfig.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (var moduleName in moduleNamesToConfigure)
-            {
-                Console.WriteLine(moduleName);
-            }
-            Console.WriteLine();
-
-            var modulesToRegister = modules.Where(m => moduleNamesToConfigure.Contains(m.Name)).ToList();
-
-            FeatureExtractionPipeline pipeline = new FeatureExtractionPipeline();
-
-            foreach (var module in modulesToRegister)
-            {
-                pipeline.RegisterModule(module);
-            }
+            FeatureExtractionPipeline pipeline = PipelineConfiguration.BuildPipeline(modulesConfig, modules);
             #endregion
-
 
             Console.WriteLine("Input file:{0}", inputRawFile);
             //char fieldSeparator = '\t';
@@ -382,7 +153,7 @@ namespace LightNlpWebApiSelfHost
             Console.WriteLine("Extracted {0} features from {1} documents", featureStatisticsDictBuilder.FeatureInfoStatistics.Count, itemsCnt);
             Console.WriteLine("Done - {0}", (DateTime.Now - timeStart));
 
-            int minFeaturesFrequency = 5;
+            
             RecomputeFeatureIndexes(featureStatisticsDictBuilder, minFeaturesFrequency);
             Console.WriteLine("Selected {0} features with min freq {1} ", featureStatisticsDictBuilder.FeatureInfoStatistics.Count, minFeaturesFrequency);
 
@@ -407,8 +178,7 @@ namespace LightNlpWebApiSelfHost
             timeStart = DateTime.Now;
             Console.WriteLine("Exporting to libsvm file format...");
 
-            bool normalize = false;
-            var scaleRange = ScaleRange.ZeroToOne;
+            
             using (System.IO.TextWriter textWriter = new System.IO.StreamWriter(libSvmOutputFileName, false))
             {
                 LibSvmFileBuilder libSvmFileBuilder = new LibSvmFileBuilder(textWriter);
@@ -421,18 +191,12 @@ namespace LightNlpWebApiSelfHost
                         //class label and doc contents
                         string classLabel = doc.ClassLabel;
                         string docContent = doc.DocContent;
-
-                        Dictionary<string, double> docFeatures = new Dictionary<string, double>();
-                        pipeline.ProcessDocument(docContent, docFeatures);
-
                         int classLabelIndex = classLabels[classLabel];
 
-                        //Append extracted features
+                        SparseItemInt sparseItem = ProcessingHelpers.ProcessTextAndGetSparseItem(pipeline, featureStatisticsDictBuilder, minFeaturesFrequency, normalize, scaleRange, docContent, classLabelIndex);
 
-                        //A - Extracted indexed features
-                        var itemIndexedFeatures = LibSvmFileBuilder.GetIndexedFeaturesFromStringFeatures(docFeatures, featureStatisticsDictBuilder.FeatureInfoStatistics, minFeaturesFrequency, normalize, scaleRange);
-                        libSvmFileBuilder.AppendItem(classLabelIndex, itemIndexedFeatures);
-                        sparseItemsWithIndexFeatures.Add(new SparseItemInt() { Label = classLabelIndex, Features = itemIndexedFeatures });
+                        libSvmFileBuilder.AppendItem(sparseItem.Label, sparseItem.Features);
+                        sparseItemsWithIndexFeatures.Add(sparseItem);
 
                         //B - Or extract indexed features and append
                         //libSvmFileBuilder.PreprocessStringFeaturesAndAppendItem(classLabelIndex, docFeatures, featureStatisticsDictBuilder.FeatureInfoStatistics, minFeaturesFrequency);
@@ -485,7 +249,7 @@ namespace LightNlpWebApiSelfHost
             List<double> predictedY = new List<double>();
             foreach (var item in testItems)
             {
-                var itemFeatureNodes = ConvertToSortedFeatureNodeArray(item.Features);
+                var itemFeatureNodes = ProcessingHelpers.ConvertToSortedFeatureNodeArray(item.Features);
 
                 //fill eval list
                 problemXEvalList.Add(itemFeatureNodes);
@@ -562,6 +326,10 @@ namespace LightNlpWebApiSelfHost
             //var prediction = Linear.predict(model, instancesToTest);
         }
 
+        
+
+
+
         private static void TrainLibLinearProblemAndSveModel(SolverType liblinearSolver, double liblinearC, double liblinearEps, FeatureStatisticsDictionaryBuilder featureStatisticsDictBuilder, string trainDataModelFileName, FeatureNode[][] problemXTrain, double[] problemYTrain)
         {
             //Create liblinear problem
@@ -622,7 +390,7 @@ namespace LightNlpWebApiSelfHost
 
             foreach (var item in items)
             {
-                FeatureNode[] itemFeatureNodes = ConvertToSortedFeatureNodeArray(item.Features);
+                FeatureNode[] itemFeatureNodes = ProcessingHelpers.ConvertToSortedFeatureNodeArray(item.Features);
                 problemXList.Add(itemFeatureNodes);
 
                 problemYList.Add(item.Label);
@@ -632,18 +400,7 @@ namespace LightNlpWebApiSelfHost
             problemY = problemYList.ToArray();
         }
 
-        private static FeatureNode[] ConvertToSortedFeatureNodeArray(Dictionary<int, double> itemFeatures)
-        {
-            var featuresDictSorted = itemFeatures.Select(kv => kv).OrderBy(kv => kv.Key).ToDictionary(kv => kv.Key, kv => kv.Value);
-            List<FeatureNode> featureNodes = new List<FeatureNode>();
-            foreach (var item in featuresDictSorted)
-            {
-                featureNodes.Add(new FeatureNode(item.Key, item.Value));
-            }
 
-            var featureNodesArray = featureNodes.ToArray();
-            return featureNodesArray;
-        }
     }
 }
 
